@@ -1,41 +1,40 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import PropertyCard from '@/components/ui/PropertyCard'
 import { fetchProperties } from '@/services/propertyService'
+import { publicListingErrorKind } from '@/services/publicListingContract.mjs'
 
-const fallbackProperties = [
-  {
-    id: 'grd-001',
-    title: 'Modern urban apartment',
-    description: 'A bright and spacious two-bedroom apartment in the city center.',
-    price: '$2,400 / month',
-    image: 'https://images.unsplash.com/photo-1560185127-6dcafdf6bf3c?auto=format&fit=crop&w=800&q=80'
-  },
-  {
-    id: 'eco-021',
-    title: 'Eco-friendly family home',
-    description: 'A quiet neighborhood home with garden access and large windows.',
-    price: '$4,100 / month',
-    image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=800&q=80'
+function listingErrorMessage(error) {
+  switch (publicListingErrorKind(error)) {
+    case 'permission-denied':
+      return 'The listing service denied access. Please try again later.'
+    case 'network':
+      return 'We could not reach the listing service. Check your connection and try again.'
+    default:
+      return 'Unable to load public listings right now. Please try again later.'
   }
-]
+}
 
 export default function Home() {
   const [properties, setProperties] = useState([])
+  const [nextCursor, setNextCursor] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
+  const [loadMoreError, setLoadMoreError] = useState(null)
 
   useEffect(() => {
     let active = true
 
     fetchProperties()
-      .then((data) => {
-        if (active && data?.length) {
-          setProperties(data)
+      .then((page) => {
+        if (active) {
+          setProperties(page.properties)
+          setNextCursor(page.nextCursor)
         }
       })
       .catch((fetchError) => {
         if (active) {
-          setError('Unable to load property listings. Showing curated recommendations.')
+          setError(listingErrorMessage(fetchError))
           console.error(fetchError)
         }
       })
@@ -50,10 +49,22 @@ export default function Home() {
     }
   }, [])
 
-  const visibleProperties = useMemo(
-    () => (properties.length > 0 ? properties : fallbackProperties),
-    [properties]
-  )
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return
+
+    setLoadingMore(true)
+    setLoadMoreError(null)
+    try {
+      const page = await fetchProperties({ cursor: nextCursor })
+      setProperties((current) => [...current, ...page.properties])
+      setNextCursor(page.nextCursor)
+    } catch (fetchError) {
+      setLoadMoreError(listingErrorMessage(fetchError))
+      console.error(fetchError)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -62,20 +73,31 @@ export default function Home() {
           <p className="eyebrow">Real estate listings for fast-growing teams</p>
           <h1>Scalable property discovery for ambitious applications.</h1>
           <p className="page-copy">
-            This structure keeps shared UI, page composition, business logic, and platform
-            integrations separated so the codebase scales with new domains and features.
+            Browse published property listings with a bounded, privacy-aware data contract.
           </p>
         </div>
       </header>
 
       {loading && <p className="status-message">Loading latest listings…</p>}
-      {error && <p className="status-message status-error">{error}</p>}
+      {error && <p className="status-message status-error" role="alert">{error}</p>}
+      {!loading && !error && properties.length === 0 && (
+        <p className="status-message">No public listings are available right now.</p>
+      )}
 
       <section className="listing-grid">
-        {visibleProperties.map((property) => (
+        {properties.map((property) => (
           <PropertyCard key={property.id} property={property} />
         ))}
       </section>
+
+      {loadMoreError && (
+        <p className="status-message status-error" role="alert">{loadMoreError}</p>
+      )}
+      {nextCursor && (
+        <button type="button" onClick={loadMore} disabled={loadingMore}>
+          {loadingMore ? 'Loading…' : 'Load more listings'}
+        </button>
+      )}
     </div>
   )
 }
