@@ -8,9 +8,14 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "firebase deploy",
-    "test": "vitest run"
+    "test": "node --test"
   },
-  "keywords": ["real-estate", "react", "firebase", "vite"],
+  "keywords": [
+    "real-estate",
+    "react",
+    "firebase",
+    "vite"
+  ],
   "author": "Harry Kibet",
   "license": "MIT",
   "dependencies": {
@@ -23,6 +28,8 @@
     "@vitejs/plugin-react": "^4.0.0",
     "vite": "^5.0.0",
     "eslint": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
-
